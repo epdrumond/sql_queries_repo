@@ -1,4 +1,6 @@
 -- Definição da tabela principal do estudo ------------------------------------------------------------------------------------------------
+drop table if exists reativacao_emprestimo;
+
 create temporary table reativacao_emprestimo as
 
 select *
@@ -26,6 +28,8 @@ where
 	tipo_tx = 'LoanDeposit';
 
 -- Atividade Pré Reativação ---------------------------------------------------------------------------------------------------------------
+drop table if exists atividade_pre_churn;
+
 create temporary table atividade_pre_churn as 
 
 select 
@@ -52,28 +56,6 @@ where
 		'PixInReversal',
 		'PixOutReversal')
 group by 1,2;
-
--- Atividade Pós Reativação ---------------------------------------------------------------------------------------------------------------
-create temporary table retencao_reativados as
-
-select 
-	tx."userId",
-	tx."createdAt" 
-from 
-	transaction_list_service."Transactions" as tx
-	inner join reativacao_emprestimo as rtv on (
-		tx."userId" = rtv."userId" and
-		tx."createdAt" > rtv.data_transacao)
-where 
-	tx.status = 'Complete' and
-	tx."transactionType" not in (
-		'AdminAdjustment',
-		'Bonus',
-		'Cashback',
-		'Charge',
-		'Fee',
-		'PixInReversal',
-		'PixOutReversal');
 	
 -- Analisar reativação por empréstimo pessoal ---------------------------------------------------------------------------------------------
 
@@ -85,32 +67,47 @@ from reativacao_emprestimo
 group by 1
 order by 1;
 
--- 2. Tempo ativo antes do churn
+-- 2. Atividade antes do churn
 select 
 	to_char(date_trunc('month', data_transacao), 'YYYY-MM') as mes_reativacao,
 	count("userId") as usuarios_reativados,
 	percentile_disc(0.5) within group (order by transacoes_anteriores) as mediana_transacoes,
 	percentile_disc(0.5) within group (order by meses_ativo) as mediana_meses_ativo,
-	percentile_disc(0.5) within group (order by flag_cdc) as mediana_pagamentos_cdc,
-	percentile_disc(0.5) within group (order by flag_deposito_loja) as mediana_deposito_loja,
-	percentile_disc(0.5) within group (order by flag_cartao) as mediana_cartao
+	100 * avg(flag_cdc)::decimal(19,3) as penetracao_cdc,
+	100 * avg(flag_deposito_loja)::decimal(19,3) as penetracao_deposito_loja,
+	100 * avg(flag_cartao)::decimal(19,3) as penetracao_cartao
 from atividade_pre_churn 
 group by 1
-order by 1
+order by 1;
 
--- 2. Principais transações pós reativação
-select 
-	tipo_proxima_tx,
-	count("userId") as transacoes
-from reativacao_emprestimo
+-- Usuários no mesmo perfil dos reativados via empréstimo pessoal -------------------------------------------------------------------------
+select
+	tx.user_id,
+	current_date - max(tx.created_at)::date as dias_inativo,
+	count(tx.id) as qtd_transacoes,
+	count(distinct date_trunc('month', tx.created_at)) as meses_ativo,
+	max(case when tx.transaction_type = 'CdcInstallmentPayment' then 1 else 0 end) as flag_cdc,
+	max(case when tx.transaction_type = 'InStoreDeposit' then 1 else 0 end) as flag_deposito_loja
+from 
+	reporting.transactions_ext as tx
+	inner join user_service.user as us on (
+		tx.user_id = us.fox_id and
+		(us.block_type is null or us.block_type not in ('blocked', 'strict_block', 'fraudhub_blockage', 'rc_restrict_blockage')))
+where 
+	tx.status = 'Complete' and
+	tx.transaction_type not in (
+		'AdminAdjustment',
+		'Bonus',
+		'Cashback',
+		'Charge',
+		'Fee',
+		'PixInReversal',
+		'PixOutReversal')
 group by 1
-order by 2 desc
-
-
-
-
-
-
-
+having 
+	current_date - max(tx.created_at)::date between 90 and 180 and
+	count(distinct date_trunc('month', tx.created_at)) >= 2 and
+	max(case when tx.transaction_type = 'CdcInstallmentPayment' then 1 else 0 end) = 1 and
+	max(case when tx.transaction_type = 'InStoreDeposit' then 1 else 0 end) = 1;
 
 
