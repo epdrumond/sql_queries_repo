@@ -1,6 +1,5 @@
 -- Criar tabela temporária com atividade mensal em Recarga de Celular -----------------------------------------------------------
-create temporary table recarga_celular as 
-
+with recarga_celular as (
   select userid as user_id,
          date_trunc('month', createdat)::date as mes_ativo,
          count(distinct id) as transacoes,
@@ -8,23 +7,21 @@ create temporary table recarga_celular as
     from reporting.transactions 
    where status = 'Complete'
      and transactiontype = 'MobileRecharge'
-group by 1,2;
+group by 1,2),
 
 -- Criar tabelas temporárias para identificar retenção mês contra mês -----------------------------------------------------------
-create temporary table retencao_recarga as
-  
+retencao_recarga as (
   select user_id,
          mes_ativo,
          transacoes,
          valor_total,
          lag(mes_ativo, 1) over (partition by user_id order by mes_ativo) as mes_ativo_anterior
-    from recarga_celular;
+    from recarga_celular),
  
-create temporary table retencao_recarga_enriquecida as  
-
+retencao_recarga_enriquecida as (
   select *,
          case when mes_ativo - '1 month'::interval = mes_ativo_anterior then 1 else 0 end as flag_retido
-    from retencao_recarga;
+    from retencao_recarga)
 
 -- Consultar melhores usuários para Recarga de Celular --------------------------------------------------------------------------
   select user_id,
