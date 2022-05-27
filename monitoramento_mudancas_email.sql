@@ -24,6 +24,9 @@ where ref.advocate_fox_id is not null)
 
 select 
 	email.user_id,
+	acc."createdAt"::date as data_criacao_conta,
+	current_date - acc."createdAt"::date as idade_conta_dias,
+	(current_date - us.birth_date) / 365 as idade_usuario_anos,
 	ind.tipo_indicacao,
 	case
 		when us.block_type in ('blocked', 'strict_block', 'fraudhub_blockage', 'rc_restrict_blockage') then 'bloqueio_fraude'
@@ -36,6 +39,7 @@ from
 	node_js.ajudaqi_user_email_edit as email
 	left join indicacao as ind on (email.user_id = ind.user_id)
 	left join user_service.user as us on (email.user_id = us.fox_id)
+	left join account_service."Account" as acc on (email.user_id = acc."foxId")
 where received_at >= current_date - '14 months'::interval
-group by 1,2,3
+group by 1,2,3,4,5,6
 having count(distinct email.id) >= 3

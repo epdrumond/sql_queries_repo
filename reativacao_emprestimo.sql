@@ -27,9 +27,10 @@ where
 	(data_transacao::date - data_transacao_anterior::date) >= 90 and
 	tipo_tx = 'LoanDeposit';
 
--- Identificação dos contratos dos reativados por empréstimo ------------------------------------------------------------------------------
+-- Identificação dos contratos e cpfs dos reativados por empréstimo -----------------------------------------------------------------------
 select distinct on (atv."userId", atv.data_transacao)
 	atv."userId",
+	us.cpf,
 	atv.data_transacao,
 	atv.data_transacao_anterior,
 	atv.tipo_proxima_tx,
@@ -37,10 +38,11 @@ select distinct on (atv."userId", atv.data_transacao)
 	ep.received_at as data_contratacao
 from 
 	reativacao_emprestimo as atv
+	left join user_service.user as us on (atv."userId" = us.fox_id)
 	left join node_js.loan_accepted as ep on (
 		atv."userId" = ep.user_id and
 		atv.data_transacao_anterior < ep.received_at)
-order by 1,2,6 asc
+order by 1,3,7 asc
 
 -- Atividade Pré Reativação ---------------------------------------------------------------------------------------------------------------
 drop table if exists atividade_pre_churn;
