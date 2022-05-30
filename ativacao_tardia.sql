@@ -1,4 +1,4 @@
--- Criar tabela temporária com as ativações pós 60 dias da criação da conta -------------------------------------------
+-- Criar tabela temporária com as ativações pós 60 dias da criação da conta --------------------------------------------
 drop table if exists ativacao_tardia;
 
 create temporary table ativacao_tardia as
