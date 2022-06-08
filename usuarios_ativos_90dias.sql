@@ -1,4 +1,6 @@
 -- Criar tabela temporária com relação dos usuários ativos nos últimos 90 dias --------------------
+drop table if exists usuarios_ativos_90dias;
+
 create temporary table usuarios_ativos_90dias as 
 
 select 
@@ -36,9 +38,11 @@ group by 1;
 -- Consultar usuários ativos nos últimos 90 dias (com CPF) ----------------------------------------
 select 
 	au.user_id,
-	us.cpf,
+	substring(us.cpf, 1, 11) as cpf,
 	au.data_referencia,
 	au.transacoes_ultimos_90dias
 from 
 	usuarios_ativos_90dias as au
-	left join user_service.user as us on (au.user_id = us.fox_id);
+	left join user_service.user as us on (
+		au.user_id = us.fox_id and
+		us.cpf != '_archived');
