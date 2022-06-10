@@ -99,6 +99,20 @@ select
 from node_js.reward_giftcard_awarded 
 group by 1,2,4,6;
 
+-- Criar tabela temporária que identifica a primeira parcela de CDC paga pelos usuários -------------------------------
+create temporary table primeiro_pagamento_cdc as 
+
+select distinct on ("userId")
+	"userId" as user_id,
+	"createdAt" as created_at,
+	("attributes" ->> 8)::json ->> 'key' as validar_campo,
+	("attributes" ->> 8)::json ->> 'value' as numero_parcela
+from transaction_list_service."Transactions" 
+where 
+	status = 'Complete' and
+	"transactionType" = 'CdcInstallmentPayment'
+order by 1,2;
+
 
 -- Consultar perfil do usuário que ativa a conta tardiamente ----------------------------------------------------------
 select 
